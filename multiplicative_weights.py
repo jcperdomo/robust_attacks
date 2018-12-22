@@ -11,7 +11,7 @@ def run_mwu(models, iters, X, Y, noise_budget, adversary, epsilon=None):
     # compute epsilon as a function of the number of rounds, see paper for more details
     if epsilon is None:
         delta = np.sqrt(4 * np.log(num_models) / float(iters))
-        epsilon = delta / 2.0
+        epsilon = min(delta / 2.0, .99)
     else:
         delta = 2.0 * epsilon
 

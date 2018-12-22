@@ -34,9 +34,7 @@ def main(arguments):
     log.info("MWU Iters {} ".format(args.mwu_iters))
     if args.pgd_iters:
         log.info("PGD Iters {}".format(args.pgd_iters))
-    log.info("Noise Budget {}".format(args.alpha))
-    log.info("Data path : {}".format(args.data_path))
-    log.info("Model path {}".format(args.model_path))
+    log.info("Noise Budget {}".format(args.noise_budget))
 
     X_exp = torch.load('experiment_data/imagenet_images.pt')[:3]
     Y_exp  = torch.load('experiment_data/imagenet_labels.pt')[:3]
@@ -47,11 +45,9 @@ def main(arguments):
         models = load_imagenet_models()
         adversary = partial(attacks.pgd, iters=args.pgd_iters)
 
-
     noise_vectors, weights, expected_losses, minimum_losses = run_mwu(models, args.mwu_iters, X_exp, Y_exp,
                                                                       args.noise_budget, adversary)
-    torch.save()
-    torch.save(noise_vectors, exp_dir + 'noise_vectors.pt')
+    torch.save(noise_vectors, exp_dir + '/noise_vectors.pt')
 
     np.save(exp_dir  + "/weights.npy", weights)
     np.save(exp_dir  + "/expected_losses.npy", expected_losses)
