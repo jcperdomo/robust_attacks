@@ -38,8 +38,8 @@ def main(arguments):
     log.info("Data path : {}".format(args.data_path))
     log.info("Model path {}".format(args.model_path))
 
-    X_exp = torch.load('experiment_data/imagenet_images.pt')[:50]
-    Y_exp  = torch.load('experiment_data/imagenet_labels.pt')[:50]
+    X_exp = torch.load('experiment_data/imagenet_images.pt')[:3]
+    Y_exp  = torch.load('experiment_data/imagenet_labels.pt')[:3]
 
     log.info("Num Points {}".format(X_exp.size()[0]))
 
