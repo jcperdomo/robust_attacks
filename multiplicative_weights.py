@@ -1,6 +1,7 @@
 import numpy as np
 import time
 import torch
+import logging as log
 
 
 def run_mwu(models, iters, X, Y, noise_budget, adversary, epsilon=None):
@@ -14,8 +15,8 @@ def run_mwu(models, iters, X, Y, noise_budget, adversary, epsilon=None):
     else:
         delta = 2.0 * epsilon
 
-    print("\nRunning MWU for {} Iterations with Epsilon {}\n".format(iters, epsilon))
-    print("Guaranteed to be within {} of the minimax value \n".format(delta))
+    log.info("\nRunning MWU for {} Iterations with Epsilon {}\n".format(iters, epsilon))
+    log.info("Guaranteed to be within {} of the minimax value \n".format(delta))
 
     # lets first do it for just one point and then add the rest of the functionality for multiple points
     weights = np.ones((num_points, num_models)) / num_models
@@ -24,7 +25,7 @@ def run_mwu(models, iters, X, Y, noise_budget, adversary, epsilon=None):
     noise_vectors = []
 
     for t in range(iters):
-        print("Iteration {}\n".format(t))
+        log.info("Iteration {}\n".format(t))
         start_time = time.time()
 
         # best response is a sequence of m vectors, m=num_points
@@ -35,11 +36,12 @@ def run_mwu(models, iters, X, Y, noise_budget, adversary, epsilon=None):
             x = X[m].unsqueeze(0).cuda()
             y = Y[m].cuda()
 
+            # calculate the adversary's response given current distribution
             best_response = adversary(weights[m], models, x, y, noise_budget)
 
-            # current loss is an array of length num_models
-            # TODO
+            # compute loss of learner per expert
             current_loss = np.array([1.0 - model.loss_single(x + best_response, y).item() for model in models])
+
             expected_losses[m].append(np.dot(weights[m], current_loss))
             minimum_losses[m].append(current_loss.min())
 
@@ -49,7 +51,7 @@ def run_mwu(models, iters, X, Y, noise_budget, adversary, epsilon=None):
             for i in range(num_models):
                 weights[m, i] = weights[m, i] * (1.0 - epsilon) ** current_loss[i]
 
-            # renormalize weights
+            # normalize weights
             weights_sum = weights[m].sum()
             for i in range(num_models - 1):
                 weights[m, i] = weights[m, i] / weights_sum
@@ -58,7 +60,7 @@ def run_mwu(models, iters, X, Y, noise_budget, adversary, epsilon=None):
         noise_vectors_t = torch.stack(noise_vectors_t)
         noise_vectors.append(noise_vectors_t)
 
-        print("time spent {}\n".format(time.time() - start_time))
+        log.info("time spent {}\n".format(time.time() - start_time))
     noise_vectors = torch.stack(noise_vectors)
-    print("finished running MWU ")
-    return noise_vectors, weights, expected_losses, minimum_losses
+    log.info("finished running multiplicative weights ")
+    return noise_vectors, weights, np.array(expected_losses), np.array(minimum_losses)
