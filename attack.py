@@ -33,4 +33,4 @@ def pgd(weights, models, x, y, noise_budget, iters):
             curr_x = torch.clamp(x + noise_vector, min=0.0, max=1.0)
         else:
             break
-    return noise_vector #, loss_list
+    return noise_vector[0] #, loss_list
