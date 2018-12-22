@@ -1,5 +1,7 @@
 import torch.nn as nn
 import torch
+import torchvision
+
 
 class DNN(nn.Module):
     def __init__(self, model, cuda=True):
@@ -32,16 +34,34 @@ class DNN(nn.Module):
         res[correct_ixs] = true_max - second_max
         return res
 
-    def accuracy(self, X, Y):
-        out = self.forward(X)
-        _, preds = torch.max(out, 1)
-        return (preds == Y).to(torch.float).mean().item()
+    def accuracy(self, X, Y, batch=False):
+        if batch:
+            accs = []
+            for x, y in zip(X, Y):
+                out = self.forward(x.unsqueeze(0))
+                _, preds = torch.max(out, 1)
+                accs.append((preds == y.unsqueeze(0)).to(torch.float).item())
+            res = np.mean(accs)
+        else:
+            out = self.forward(X)
+            _, preds = torch.max(out, 1)
+            res = (preds == Y).to(torch.float).mean().item()
+        return res
 
     def loss_single(self, x, y):
         probs = self.forward(x)
         true_max, max_ix = torch.max(probs, 1)
         probs2 = probs.clone()
         probs2[0, y.item()] = -1.0
-        _, second_max_ix = torch.max(probs2,1)
+        _, second_max_ix = torch.max(probs2, 1)
         relu = nn.ReLU()
         return relu(probs[0, y.item()] - probs[0, second_max_ix.item()])
+
+def load_imagenet_models():
+    resnet18 = torchvision.models.resnet18(pretrained=True).cuda().eval()
+    resnet50 = torchvision.models.resnet50(pretrained=True).cuda().eval()
+    vgg13 = torchvision.models.vgg13(pretrained=True).cuda().eval()
+    vgg19 = torchvision.models.vgg19_bn(pretrained=True).cuda().eval()
+    densenet = torchvision.models.densenet161(pretrained=True).cuda().eval()
+    return [DNN(resnet18), DNN(resnet50), DNN(vgg13), DNN(vgg19), DNN(densenet)]
+
