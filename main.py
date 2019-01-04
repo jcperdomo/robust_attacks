@@ -36,8 +36,8 @@ def main(arguments):
         log.info("PGD Iters {}".format(args.pgd_iters))
     log.info("Noise Budget {}".format(args.noise_budget))
 
-    X_exp = torch.load('experiment_data/imagenet_images.pt')[:3]
-    Y_exp  = torch.load('experiment_data/imagenet_labels.pt')[:3]
+    X_exp = torch.load('experiment_data/imagenet_images.pt')[:100]
+    Y_exp  = torch.load('experiment_data/imagenet_labels.pt')[:100]
 
     log.info("Num Points {}".format(X_exp.size()[0]))
 

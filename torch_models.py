@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch
 import torchvision
-
+import numpy as np
 
 class DNN(nn.Module):
     def __init__(self, model, cuda=True):

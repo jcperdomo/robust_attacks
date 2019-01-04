@@ -1,6 +1,6 @@
 import torch 
 
-def pgd(weights, models, x, y, noise_budget, iters):
+def pgd(weights, models, x, y, noise_budget, iters, clip_min=0.0, clip_max=1.0):
     step_size = noise_budget / (.8 * iters)
     noise_vector = torch.zeros(x.size()).cuda()
     #loss_list = []
@@ -30,7 +30,7 @@ def pgd(weights, models, x, y, noise_budget, iters):
             if  noise_norm > noise_budget:
                 noise_vector = noise_budget * noise_vector / noise_norm
 
-            curr_x = torch.clamp(x + noise_vector, min=0.0, max=1.0)
+            curr_x = torch.clamp(x + noise_vector, min=clip_min, max=clip_max)
         else:
             break
-    return noise_vector[0] #, loss_list
+    return (curr_x - x)[0] #, loss_list
