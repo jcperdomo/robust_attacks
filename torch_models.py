@@ -3,7 +3,94 @@ import torch
 import torchvision
 import numpy as np
 
+
+class BinaryClassifier(nn.Module):
+
+    def __init__(self, weights, bias):
+        super(BinaryClassifier, self).__init__()
+        # normalize weights to make distance measurements more convenient
+        norm = weights.norm(2)
+        weights = weights / norm
+        bias = bias / norm
+
+        out_dim, in_dim = weights.size()
+        self.linear = nn.Linear(in_dim, out_dim)
+        self.linear.weight = nn.Parameter(weights)
+        self.linear.bias = nn.Parameter(bias)
+
+        # maintain numpy versions for (ease of) use with convex best response oracle
+        self.weights = weights.numpy().reshape(-1, )
+        self.bias = bias.item()
+
+    def forward(self, x):
+        return self.linear(x).reshape(-1, )
+
+    def predict(self, x):
+        return torch.sign(self.forward(x))
+
+    def distance(self, x):
+        # returns distance of points to the decision boundary
+        return torch.abs(self.forward(x))
+
+    def accuracy(self, X, Y):
+        Y = Y.float()
+        return (torch.sign(self.forward(X)) == Y).to(torch.float).mean().item()
+
+    def loss_single(self, x, v, y, noise_budget):
+        # implements the reverse hinge loss, normalized to be bounded in the range [0,1]
+        relu = nn.ReLU()
+        """
+        noise_budget * -y / ||w|| * w  is the optimal attack
+        therefore, max loss is induced by pushing in the opposite direction
+        """
+        y = y.float()
+        max_loss = (y * self.forward(x + y * noise_budget * self.linear.weight.data)).item()
+        # it's possible that the max loss is less than 0 if the point is very far on the incorrect
+        # side of the decision boundary
+        max_loss = 1 if max_loss < 0 else max_loss
+        return relu(y * self.forward(x + v)) / max_loss
+    
+
+class MultiClassifier(nn.Module):
+    
+    def __init__(self, weights, bias):
+        super(MultiClassifier, self).__init__()        
+        out_dim, in_dim = weights.size()
+        self.linear = nn.Linear(in_dim, out_dim)
+        self.linear.weight = nn.Parameter(weights)
+        self.linear.bias = nn.Parameter(bias)
+        # maintain numpy versions for use with convex best response oracle
+        self.weights = weights.numpy()
+        self.bias = bias.numpy()
+
+    def forward(self, x):
+        return self.linear(x)
+    
+    def predict(self, x):
+        out = self.forward(x)
+        _, preds = torch.max(out, 1)
+        return preds
+
+    def distance(self, x):
+        return #TODO
+    
+    def accuracy(self, X, Y):
+        out = self.forward(X)
+        _, preds = torch.max(out, 1)
+        return (preds == Y).to(torch.float).mean().item()
+
+    def loss_single(self, x, v, y, noise_budget):
+        probs = self.forward(x + v)
+        true_max, max_ix = torch.max(probs, 1)
+        probs2 = probs.clone()
+        probs2[0, y.item()] = torch.min(probs) - 1.0
+        _, second_max_ix = torch.max(probs2, 1)
+        relu = nn.ReLU()
+        return relu(probs[0, y.item()] - probs[0, second_max_ix.item()])
+
+
 class DNN(nn.Module):
+    
     def __init__(self, model, cuda=True):
         super(DNN, self).__init__()
         self.softmax = nn.Softmax(dim=1)
