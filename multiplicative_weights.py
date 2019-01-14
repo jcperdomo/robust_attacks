@@ -64,7 +64,10 @@ def run_mwu(models, iters, X, Y, noise_budget, adversary, cuda, epsilon=None):
         noise_vectors_t = torch.stack(noise_vectors_t)
         noise_vectors.append(noise_vectors_t)
 
-        log.info("time spent {}\n".format(time.time() - start_time))
+        time_spent = time.time() - start_time
+        log.info("time spent {}".format(time_spent))
+        log.info("time spent per point {}\n".format(time_spent / num_points))
+
     noise_vectors = torch.stack(noise_vectors)
     log.info("finished running multiplicative weights ")
     return noise_vectors, weights, np.array(expected_losses), np.array(minimum_losses)

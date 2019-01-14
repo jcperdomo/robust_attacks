@@ -128,6 +128,13 @@ def main(arguments):
     test_labels = torch.tensor(test_labels)
     exp_images, exp_labels = generate_experiment_data(args.num_points, test_data, test_labels, models)
 
+    distances = np.array([model.distance(exp_images).detach().numpy() for model in models])
+    percentiles = [np.percentile(dist, [10, 25, 50, 75, 90]) for dist in distances]
+    log.info("Distance Percentiles, Table [models] x percentiles [10, 25, 50, 75, 90]\n")
+    for i, p in enumerate(percentiles):
+        log.info("Model {} Distance Percentiles {}".format(i, list(p)))
+    log.info("\n")
+
     for i, model in enumerate(models):
         log.info('Model {} Test Accuracy : {}'.format(i, model.accuracy(test_data, test_labels)))
         torch.save(model, model_save_path + 'model_{}.pt'.format(i))
