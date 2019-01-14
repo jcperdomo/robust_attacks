@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch
 import torchvision
 import numpy as np
-
+import os
 
 class BinaryClassifier(nn.Module):
 
@@ -22,6 +22,8 @@ class BinaryClassifier(nn.Module):
         self.weights = weights.numpy().reshape(-1, )
         self.bias = bias.item()
 
+        self.oracle = False
+
     def forward(self, x):
         return self.linear(x).reshape(-1, )
 
@@ -37,31 +39,38 @@ class BinaryClassifier(nn.Module):
         return (torch.sign(self.forward(X)) == Y).to(torch.float).mean().item()
 
     def loss_single(self, x, v, y, noise_budget):
-        # implements the reverse hinge loss, normalized to be bounded in the range [0,1]
-        relu = nn.ReLU()
-        """
-        noise_budget * -y / ||w|| * w  is the optimal attack
-        therefore, max loss is induced by pushing in the opposite direction
-        """
-        y = y.float()
-        max_loss = (y * self.forward(x + y * noise_budget * self.linear.weight.data)).item()
-        # it's possible that the max loss is less than 0 if the point is very far on the incorrect
-        # side of the decision boundary
-        max_loss = 1 if max_loss < 0 else max_loss
-        return relu(y * self.forward(x + v)) / max_loss
-    
+        if self.oracle:
+            return torch.tensor(self.accuracy(x + v, y))
+        else:
+            # implements the reverse hinge loss, normalized to be bounded in the range [0,1]
+            relu = nn.ReLU()
+            """
+            noise_budget * -y / ||w|| * w  is the optimal attack
+            therefore, max loss is induced by pushing in the opposite direction
+            """
+            y = y.float()
+            max_loss = (y * self.forward(x + y * noise_budget * self.linear.weight.data)).item()
+            # it's possible that the max loss is less than 0 if the point is very far on the incorrect
+            # side of the decision boundary
+            max_loss = 1 if max_loss < 0 else max_loss
+            return relu(y * self.forward(x + v)) / max_loss
+
 
 class MultiClassifier(nn.Module):
     
     def __init__(self, weights, bias):
-        super(MultiClassifier, self).__init__()        
+        super(MultiClassifier, self).__init__()
+
         out_dim, in_dim = weights.size()
         self.linear = nn.Linear(in_dim, out_dim)
         self.linear.weight = nn.Parameter(weights)
         self.linear.bias = nn.Parameter(bias)
+
         # maintain numpy versions for use with convex best response oracle
         self.weights = weights.numpy()
         self.bias = bias.numpy()
+
+        self.oracle = False
 
     def forward(self, x):
         return self.linear(x)
@@ -80,13 +89,19 @@ class MultiClassifier(nn.Module):
         return (preds == Y).to(torch.float).mean().item()
 
     def loss_single(self, x, v, y, noise_budget):
-        probs = self.forward(x + v)
-        true_max, max_ix = torch.max(probs, 1)
-        probs2 = probs.clone()
-        probs2[0, y.item()] = torch.min(probs) - 1.0
-        _, second_max_ix = torch.max(probs2, 1)
-        relu = nn.ReLU()
-        return relu(probs[0, y.item()] - probs[0, second_max_ix.item()])
+        if self.oracle:
+            return torch.tensor(self.accuracy(x + v, y))
+        else:
+            probs = self.forward(x + v)
+            # true_max, max_ix = torch.max(probs, 1)
+            probs2 = probs.clone()
+            probs2[0, y.item()] = torch.min(probs) - 1.0
+            _, second_max_ix = torch.max(probs2, 1)
+            diff = probs[0, y.item()] - probs[0, second_max_ix.item()]
+            relu = nn.ReLU()
+            sigmoid = nn.Sigmoid()
+            loss = (sigmoid(diff) - .5) * 2
+            return relu(loss)
 
 
 class DNN(nn.Module):
@@ -135,20 +150,34 @@ class DNN(nn.Module):
             res = (preds == Y).to(torch.float).mean().item()
         return res
 
-    def loss_single(self, x, y):
-        probs = self.forward(x)
-        true_max, max_ix = torch.max(probs, 1)
+    def loss_single(self, x, v, y, noise_budget):
+        probs = self.forward(x + v)
+        # true_max, max_ix = torch.max(probs, 1)
         probs2 = probs.clone()
         probs2[0, y.item()] = -1.0
         _, second_max_ix = torch.max(probs2, 1)
         relu = nn.ReLU()
         return relu(probs[0, y.item()] - probs[0, second_max_ix.item()])
 
-def load_imagenet_models():
-    resnet18 = torchvision.models.resnet18(pretrained=True).cuda().eval()
-    resnet50 = torchvision.models.resnet50(pretrained=True).cuda().eval()
-    vgg13 = torchvision.models.vgg13(pretrained=True).cuda().eval()
-    vgg19 = torchvision.models.vgg19_bn(pretrained=True).cuda().eval()
-    densenet = torchvision.models.densenet161(pretrained=True).cuda().eval()
-    return [DNN(resnet18), DNN(resnet50), DNN(vgg13), DNN(vgg19), DNN(densenet)]
+def load_models(exp_type):
+
+    if exp_type == 'imagenet':
+        resnet18 = torchvision.models.resnet18(pretrained=True).cuda().eval()
+        resnet50 = torchvision.models.resnet50(pretrained=True).cuda().eval()
+        vgg13 = torchvision.models.vgg13(pretrained=True).cuda().eval()
+        vgg19 = torchvision.models.vgg19_bn(pretrained=True).cuda().eval()
+        densenet = torchvision.models.densenet161(pretrained=True).cuda().eval()
+        models = [DNN(resnet18), DNN(resnet50), DNN(vgg13), DNN(vgg19), DNN(densenet)]
+
+    elif exp_type == "mnist_binary":
+        models = [torch.load('models/binary/' + model_file) for model_file in os.listdir('models/binary/')]
+
+    elif exp_type == 'mnist_multi':
+        models = [torch.load('models/multi/' + model_file) for model_file in os.listdir('models/multi/')]
+
+    return models
+
+
+
+
 
