@@ -109,6 +109,12 @@ def main(arguments):
 
     subdirectory = 'binary' if len(args.sel_labels) == 2 else 'multi'
 
+    if not os.path.exists('experiment_data/'):
+        os.mkdir('experiment_data/')
+
+    if not os.path.exists('experiment_data/linear/'):
+        os.mkdir('experiment_data/linear/')
+
     log.basicConfig(format='%(asctime)s: %(message)s', level=log.INFO, datefmt='%m/%d/%Y %I:%M:%S %p',
                     filename='experiment_data/linear_{}_setup.log'.format(subdirectory), filemode='w')
     log.info('Number of Points {}'.format(args.num_points))
@@ -119,6 +125,9 @@ def main(arguments):
     test_data, test_labels = get_mnist_data(False, args.sel_labels)
 
     models = generate_feature_independent_svms(args.num_classifiers, train_data, train_labels)
+
+    if not os.path.exists('models/'):
+        os.mkdir('models/')
 
     model_save_path = 'models/' + subdirectory + '/'
     if not os.path.exists(model_save_path):
