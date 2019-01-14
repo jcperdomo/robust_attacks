@@ -3,6 +3,7 @@ import torch
 import torchvision
 import numpy as np
 import os
+from attacks import try_region_multi
 
 class BinaryClassifier(nn.Module):
 
@@ -57,7 +58,7 @@ class BinaryClassifier(nn.Module):
 
 
 class MultiClassifier(nn.Module):
-    
+
     def __init__(self, weights, bias):
         super(MultiClassifier, self).__init__()
 
@@ -69,20 +70,38 @@ class MultiClassifier(nn.Module):
         # maintain numpy versions for use with convex best response oracle
         self.weights = weights.numpy()
         self.bias = bias.numpy()
-
         self.oracle = False
 
     def forward(self, x):
         return self.linear(x)
-    
+
     def predict(self, x):
         out = self.forward(x)
         _, preds = torch.max(out, 1)
         return preds
 
-    def distance(self, x):
-        return #TODO
-    
+    def distance(self, X):
+        """
+        Computes the minimum distance from a point to the decision boundary
+        by finding the optimal perturbation for each targeted attack and choosing the minium
+
+        returns: a vector of shape (num_points,) with the corresponding distances
+        """
+        n = X.shape[0]
+        Y = self.predict(X)
+        X = X.numpy()
+
+        distances = []
+        for i in range(n):
+            label_options = list(range(self.weights.shape[0]))  # create list of length num_classes
+            del label_options[Y[i]]
+            dists = []
+            for j in label_options:
+                v = try_region_multi([self], [j], X[i])
+                dists.append(np.linalg.norm(v))
+            distances.append(min(dists))
+        return torch.tensor(distances)
+
     def accuracy(self, X, Y):
         out = self.forward(X)
         _, preds = torch.max(out, 1)

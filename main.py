@@ -71,9 +71,8 @@ def main(arguments):
     else:
         if args.exp_type == 'mnist_binary':
             adversary = attacks.distributional_oracle_binary
-        else:
-            #TODO add multiclass oracle
-            adversary = None
+        elif args.exp_type == 'mnist_multi':
+            adversary = attacks.distributional_oracle_multi
         for model in models:
             model.oracle = True
 
