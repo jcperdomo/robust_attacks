@@ -155,7 +155,7 @@ def main(arguments):
     param_list = [(np.ones(len(models)), model_arrays, x.reshape(1,-1), torch.tensor([y]), sys.maxsize)
                   for x,y in zip(exp_images, exp_labels)]
 
-    with multiprocessing.Pool(processes=2) as pool:
+    with multiprocessing.Pool(processes=30) as pool:
         vectors = pool.starmap(oracle, param_list)
 
     distances = np.array([v.norm().item() for v in vectors])
