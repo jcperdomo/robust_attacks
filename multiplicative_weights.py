@@ -45,7 +45,7 @@ def run_mwu(models, iters, X, Y, noise_budget, adversary, cuda, use_ray, epsilon
                 x = X[m].unsqueeze(0)
                 y = Y[m] #TODO
                 param_list.append((weights[m], model_arrays, x, y, noise_budget))
-            with multiprocessing.Pool(processes=6) as pool:
+            with multiprocessing.Pool(processes=30) as pool:
                 best_responses = pool.starmap(adversary, param_list)
 
         for m in range(num_points):
