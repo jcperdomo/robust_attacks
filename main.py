@@ -9,7 +9,7 @@ import attacks
 import time
 import torch
 import numpy as np
-
+import ray
 
 def main(arguments):
     parser = argparse.ArgumentParser()
@@ -58,8 +58,9 @@ def main(arguments):
         cuda = False
 
     #TODO Remove
-#    exp_data = exp_data[:3]
-#    exp_labels = exp_labels[:3]
+    exp_data = exp_data[:50]
+    exp_labels = exp_labels[:50]
+    use_ray = False
 
     models = load_models(args.exp_type)
 
@@ -69,6 +70,8 @@ def main(arguments):
     if args.noise_function == 'pgd':
         adversary = partial(attacks.pgd, iters=args.pgd_iters, cuda=cuda)
     else:
+        use_ray = False
+        # ray.init()
         if args.exp_type == 'mnist_binary':
             adversary = attacks.distributional_oracle_binary
         elif args.exp_type == 'mnist_multi':
@@ -77,7 +80,7 @@ def main(arguments):
             model.oracle = True
 
     noise_vectors, weights, expected_losses, minimum_losses = run_mwu(models, args.mwu_iters, exp_data, exp_labels,
-                                                                      args.noise_budget, adversary, cuda)
+                                                                      args.noise_budget, adversary, cuda, use_ray)
     torch.save(noise_vectors, exp_dir + '/noise_vectors.pt')
 
     np.save(exp_dir  + "/weights.npy", weights)

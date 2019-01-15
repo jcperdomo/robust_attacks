@@ -2,9 +2,9 @@ import numpy as np
 import time
 import torch
 import logging as log
+import ray
 
-
-def run_mwu(models, iters, X, Y, noise_budget, adversary, cuda, epsilon=None):
+def run_mwu(models, iters, X, Y, noise_budget, adversary, cuda, use_ray, epsilon=None):
     num_models = len(models)
     num_points = X.size()[0]
 
@@ -30,8 +30,16 @@ def run_mwu(models, iters, X, Y, noise_budget, adversary, cuda, epsilon=None):
 
         # best response is a sequence of m vectors, m=num_points
         noise_vectors_t = []
+
         # TODO parallelize the oracle
-        
+        if use_ray:
+            best_responses = []
+            for m in range(num_points):
+                x = X[m].unsqueeze(0)
+                y = Y[m]
+                best_responses.append(adversary.remote(weights[m], models, x, y, noise_budget))
+            best_responses = ray.get(best_responses)
+
         for m in range(num_points):
 
             x = X[m].unsqueeze(0)
@@ -41,8 +49,11 @@ def run_mwu(models, iters, X, Y, noise_budget, adversary, cuda, epsilon=None):
                 x = x.cuda()
                 y = y.cuda()
 
-            # calculate the adversary's response given current distribution
-            best_response = adversary(weights[m], models, x, y, noise_budget)
+            if use_ray:
+                best_response = best_responses[m]
+            else:
+                # calculate the adversary's response given current distribution
+                best_response = adversary(weights[m], models, x, y, noise_budget)
 
             # compute loss of learner per expert
             current_loss = np.array([1.0 - model.loss_single(x, best_response, y, noise_budget).item() for model in models])

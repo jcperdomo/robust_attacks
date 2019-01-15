@@ -3,10 +3,12 @@ import numpy as np
 import argparse
 from sklearn.svm import LinearSVC
 from torch_models import BinaryClassifier, MultiClassifier
+from attacks import distributional_oracle_binary, distributional_oracle_multi
 import torch
 import logging as log
 import os
 import sys
+import ray
 
 
 def subset_multiclass_data(data, labels, label_dict):
@@ -107,7 +109,12 @@ def main(arguments):
     parser.add_argument("-sel_labels", help="list of labels to subset", nargs='+', type=int, required=True)
     args = parser.parse_args(arguments)
 
-    subdirectory = 'binary' if len(args.sel_labels) == 2 else 'multi'
+    if len(args.sel_labels) == 2:
+        subdirectory = 'binary'
+        oracle = distributional_oracle_binary
+    else:
+        subdirectory = 'multi'
+        oracle = distributional_oracle_multi
 
     if not os.path.exists('experiment_data/'):
         os.mkdir('experiment_data/')
@@ -137,12 +144,14 @@ def main(arguments):
     test_labels = torch.tensor(test_labels)
     exp_images, exp_labels = generate_experiment_data(args.num_points, test_data, test_labels, models)
 
-    distances = np.array([model.distance(exp_images).detach().numpy() for model in models])
-    percentiles = [np.percentile(dist, [10, 25, 50, 75, 90]) for dist in distances]
-    log.info("Distance Percentiles, Table [models] x percentiles [10, 25, 50, 75, 90]\n")
-    for i, p in enumerate(percentiles):
-        log.info("Model {} Distance Percentiles {}".format(i, list(p)))
-    log.info("\n")
+    ray.init()
+    vectors = ray.get([oracle.remote(np.ones(len(models)), models, x.reshape(1,-1), torch.tensor([y]), sys.maxsize)
+                         for x,y in zip(exp_images, exp_labels)])
+    distances = np.array([v.norm().item() for v in vectors])
+    # distances = np.array([model.distance(exp_images).detach().numpy() for model in models])
+
+    percentiles = np.percentile(distances, [10, 25, 50, 75, 90])
+    log.info("Max Distance Percentiles for Exp Images {}\n".format(percentiles))
 
     for i, model in enumerate(models):
         log.info('Model {} Test Accuracy : {}'.format(i, model.accuracy(test_data, test_labels)))

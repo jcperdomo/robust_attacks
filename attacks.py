@@ -2,6 +2,7 @@ import torch
 from cvxopt import matrix, solvers
 from itertools import product
 import numpy as np
+import ray
 
 def pgd(weights, models, x, y, noise_budget, iters, clip_min=0.0, clip_max=1.0, cuda=True):
     step_size = noise_budget / (.8 * iters)
@@ -83,6 +84,7 @@ def try_region_binary(models, signs, x, delta=1e-5):
 
 # TODO parallelize the oracle
 
+# @ray.remote
 def distributional_oracle_binary(distribution, models, x, y, noise_budget):
     """
     computes the optimal perturbation for the point (x,y) using convex optimization
@@ -157,16 +159,16 @@ def try_region_multi(models, labels, x, delta=1e-5, num_labels=3):
     else:
         return None
 
-
-def distributional_oracle_multi(distribution, models, x, y, alpha, num_labels=3):
+# @ray.remote
+def distributional_oracle_multi(distribution, models, x, y, noise_budget, num_labels=3):
     """
     computes the optimal perturbation for x under alpha and the given distribution
     """
     num_models = len(models)
     # we should only take into consideration models that we could feasibly trick
     distances = [model.distance(x).item() for model in models]
-    models = [models[i] for i in range(num_models) if distances[i] < alpha]
-    distribution = np.array([distribution[i] for i in range(num_models) if distances[i] < alpha])
+    models = [models[i] for i in range(num_models) if distances[i] < noise_budget]
+    distribution = np.array([distribution[i] for i in range(num_models) if distances[i] < noise_budget])
     num_models = len(models)
 
     x = x.numpy().reshape(-1, )
@@ -191,7 +193,7 @@ def distributional_oracle_multi(distribution, models, x, y, alpha, num_labels=3)
             v = try_region_multi(models, labels, x, num_labels=num_labels)
             if v is not None:
                 norm = np.linalg.norm(v)
-                if norm <= alpha:
+                if norm <= noise_budget:
                     feasible_candidates.append((v, norm))
         # amongst those with the max value, return the one with the minimum norm
         if feasible_candidates:
