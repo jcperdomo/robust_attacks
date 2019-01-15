@@ -45,22 +45,20 @@ def main(arguments):
     if args.exp_type == 'imagenet':
         exp_data = torch.load('experiment_data/imagenet_images.pt')[:100]
         exp_labels = torch.load('experiment_data/imagenet_labels.pt')[:100]
+        num_labels = 1000
         cuda = True
 
     elif args.exp_type == 'mnist_binary':
         exp_data = torch.load('experiment_data/linear/binary/mnist_images.pt')
         exp_labels = torch.load('experiment_data/linear/binary/mnist_labels.pt')
+        num_labels = 2
         cuda = False
 
     elif args.exp_type == 'mnist_multi':
         exp_data = torch.load('experiment_data/linear/multi/mnist_images.pt')
         exp_labels = torch.load('experiment_data/linear/multi/mnist_labels.pt')
+        num_labels = 3
         cuda = False
-
-    #TODO Remove
-    exp_data = exp_data[:30]
-    exp_labels = exp_labels[:30]
-    use_ray = False
 
     models = load_models(args.exp_type)
 
@@ -69,9 +67,9 @@ def main(arguments):
 
     if args.noise_function == 'pgd':
         adversary = partial(attacks.pgd, iters=args.pgd_iters, cuda=cuda)
+        parallel = False
     else:
-        use_ray = True
-        # ray.init()
+        parallel = True
         if args.exp_type == 'mnist_binary':
             adversary = attacks.distributional_oracle_binary
         elif args.exp_type == 'mnist_multi':
@@ -80,7 +78,7 @@ def main(arguments):
             model.oracle = True
 
     noise_vectors, weights, expected_losses, minimum_losses = run_mwu(models, args.mwu_iters, exp_data, exp_labels,
-                                                                      args.noise_budget, adversary, cuda, use_ray)
+                                                                      args.noise_budget, adversary, cuda, parallel, num_labels)
     torch.save(noise_vectors, exp_dir + '/noise_vectors.pt')
 
     np.save(exp_dir  + "/weights.npy", weights)
