@@ -2,7 +2,8 @@ import numpy as np
 import time
 import torch
 import logging as log
-import ray
+# import ray
+import multiprocessing
 
 def run_mwu(models, iters, X, Y, noise_budget, adversary, cuda, use_ray, epsilon=None):
     num_models = len(models)
@@ -38,12 +39,14 @@ def run_mwu(models, iters, X, Y, noise_budget, adversary, cuda, use_ray, epsilon
 
         # TODO parallelize the oracle
         if use_ray:
-            best_responses = []
+            print('using multiprocessing')
+            param_list = []
             for m in range(num_points):
                 x = X[m].unsqueeze(0)
                 y = Y[m] #TODO
-                best_responses.append(adversary.remote(weights[m], model_arrays, x, y, noise_budget))
-            best_responses = ray.get(best_responses)
+                param_list.append((weights[m], model_arrays, x, y, noise_budget))
+            with multiprocessing.Pool(processes=6) as pool:
+                best_responses = pool.starmap(adversary, param_list)
 
         for m in range(num_points):
 

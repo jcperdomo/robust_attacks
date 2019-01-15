@@ -9,7 +9,7 @@ import attacks
 import time
 import torch
 import numpy as np
-import ray
+# import ray
 
 def main(arguments):
     parser = argparse.ArgumentParser()
@@ -71,7 +71,7 @@ def main(arguments):
         adversary = partial(attacks.pgd, iters=args.pgd_iters, cuda=cuda)
     else:
         use_ray = True
-        ray.init()
+        # ray.init()
         if args.exp_type == 'mnist_binary':
             adversary = attacks.distributional_oracle_binary
         elif args.exp_type == 'mnist_multi':
