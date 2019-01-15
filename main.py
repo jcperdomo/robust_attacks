@@ -58,8 +58,8 @@ def main(arguments):
         cuda = False
 
     #TODO Remove
-    exp_data = exp_data[:3]
-    exp_labels = exp_labels[:3]
+#    exp_data = exp_data[:3]
+#    exp_labels = exp_labels[:3]
 
     models = load_models(args.exp_type)
 

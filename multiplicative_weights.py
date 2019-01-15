@@ -42,10 +42,8 @@ def run_mwu(models, iters, X, Y, noise_budget, adversary, cuda, epsilon=None):
 
             # calculate the adversary's response given current distribution
             best_response = adversary(weights[m], models, x, y, noise_budget)
-            print(best_response.shape)
             # compute loss of learner per expert
             current_loss = np.array([1.0 - model.loss_single(x, best_response, y, noise_budget).item() for model in models])
-            print(current_loss)
             expected_losses[m].append(np.dot(weights[m], current_loss))
             minimum_losses[m].append(current_loss.min())
 
