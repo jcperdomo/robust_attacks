@@ -2,8 +2,7 @@ import torch
 from cvxopt import matrix, solvers
 from itertools import product
 import numpy as np
-import ray
-from torch_models import BinaryClassifier
+from torch_models import BinaryClassifier, MultiClassifier, try_region_multi
 
 def pgd(weights, models, x, y, noise_budget, iters, clip_min=0.0, clip_max=1.0, cuda=True):
     step_size = noise_budget / (.8 * iters)
@@ -83,7 +82,6 @@ def try_region_binary(models, signs, x, delta=1e-5):
     else:
         return None
 
-# TODO parallelize the oracle
 def distributional_oracle_binary(distribution, model_arrays, x, y, noise_budget):
     """
     computes the optimal perturbation for the point (x,y) using convex optimization
@@ -126,45 +124,47 @@ def distributional_oracle_binary(distribution, model_arrays, x, y, noise_budget)
             return torch.tensor(v, dtype=torch.float32).reshape(1,-1)
 
 
-def try_region_multi(models, labels, x, delta=1e-5, num_labels=3):
-    dim = x.shape[0]
-    P = matrix(np.identity(dim))
-    q = matrix(np.zeros(dim))
-    h = []
-    G = []
-    num_models = len(models)
-    for i in range(num_models):
-        others = list(range(num_labels))
-        target = labels[i]
-        del others[target]
-        target_w, target_b = models[i].weights[target], models[i].bias[target]
-        for j in others:
-            other_w, other_b = models[i].weights[j], models[i].bias[j]
-            ineq_val = np.dot(target_w - other_w, x) + target_b - other_b - delta
-            h.append(ineq_val)
-            G.append(other_w - target_w)
-    G = np.concatenate([np.array(G), -1 * np.identity(dim), np.identity(dim)])
-    h = matrix(np.concatenate([h, x, 1.0 - x]))  # assumes inputs need to lie in [0,1]
-    G = matrix(np.array(G, dtype=np.float64))
-    solvers.options['show_progress'] = False
-    sol = solvers.qp(P, q, G, h)
-    if sol['status'] == 'optimal':
-        v = np.array(sol['x']).reshape(-1, )
-        perturbed_x = torch.tensor((x + v).reshape(1, -1), dtype=torch.float)
-        is_desired_label = [models[i].predict(perturbed_x).item() == labels[i] for i in range(num_models)]
-        if sum(is_desired_label) == num_models:
-            return v
-        else:
-            print('looped')
-            return try_region_multi(models, labels, x, delta * 1.5, num_labels)
-    else:
-        return None
+# def try_region_multi(models, labels, x, delta=1e-5, num_labels=3):
+#     dim = x.shape[0]
+#     P = matrix(np.identity(dim))
+#     q = matrix(np.zeros(dim))
+#     h = []
+#     G = []
+#     num_models = len(models)
+#     for i in range(num_models):
+#         others = list(range(num_labels))
+#         target = labels[i]
+#         del others[target]
+#         target_w, target_b = models[i].weights[target], models[i].bias[target]
+#         for j in others:
+#             other_w, other_b = models[i].weights[j], models[i].bias[j]
+#             ineq_val = np.dot(target_w - other_w, x) + target_b - other_b - delta
+#             h.append(ineq_val)
+#             G.append(other_w - target_w)
+#     G = np.concatenate([np.array(G), -1 * np.identity(dim), np.identity(dim)])
+#     h = matrix(np.concatenate([h, x, 1.0 - x]))  # assumes inputs need to lie in [0,1]
+#     G = matrix(np.array(G, dtype=np.float64))
+#     solvers.options['show_progress'] = False
+#     sol = solvers.qp(P, q, G, h)
+#     if sol['status'] == 'optimal':
+#         v = np.array(sol['x']).reshape(-1, )
+#         perturbed_x = torch.tensor((x + v).reshape(1, -1), dtype=torch.float)
+#         is_desired_label = [models[i].predict(perturbed_x).item() == labels[i] for i in range(num_models)]
+#         if sum(is_desired_label) == num_models:
+#             return v
+#         else:
+#             print('looped')
+#             return try_region_multi(models, labels, x, delta * 1.5, num_labels)
+#     else:
+#         return None
 
-# @ray.remote
-def distributional_oracle_multi(distribution, models, x, y, noise_budget, num_labels=3):
+def distributional_oracle_multi(distribution, model_arrays, x, y, noise_budget, num_labels=3):
     """
     computes the optimal perturbation for x under alpha and the given distribution
     """
+
+    models = [MultiClassifier(arrays[0], arrays[1]) for arrays in model_arrays]
+
     num_models = len(models)
     # we should only take into consideration models that we could feasibly trick
     distances = [model.distance(x).item() for model in models]

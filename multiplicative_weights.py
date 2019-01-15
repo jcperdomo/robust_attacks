@@ -5,10 +5,10 @@ import logging as log
 # import ray
 import multiprocessing
 
-def run_mwu(models, iters, X, Y, noise_budget, adversary, cuda, use_ray, epsilon=None):
+def run_mwu(models, iters, X, Y, noise_budget, adversary, cuda, parallel, num_labels, epsilon=None):
     num_models = len(models)
     num_points = X.size()[0]
-
+    out_dim = 1 if num_labels == 2 else num_labels
     # compute epsilon as a function of the number of rounds, see paper for more details
     if epsilon is None:
         delta = np.sqrt(4 * np.log(num_models) / float(iters))
@@ -26,9 +26,9 @@ def run_mwu(models, iters, X, Y, noise_budget, adversary, cuda, use_ray, epsilon
     noise_vectors = []
 
     #TODO
-    if use_ray:
-        model_arrays = [(torch.tensor(model.weights.reshape(1,-1), dtype=torch.float), torch.tensor(model.bias, dtype=torch.float))
-                        for model in models]
+    if parallel:
+        model_arrays = [(torch.tensor(model.weights.reshape(out_dim,-1), dtype=torch.float),
+                         torch.tensor(model.bias, dtype=torch.float)) for model in models]
 
     for t in range(iters):
         log.info("Iteration {}\n".format(t))
@@ -38,8 +38,8 @@ def run_mwu(models, iters, X, Y, noise_budget, adversary, cuda, use_ray, epsilon
         noise_vectors_t = []
 
         # TODO parallelize the oracle
-        if use_ray:
-            print('using multiprocessing')
+        if parallel:
+            # print('using multiprocessing')
             param_list = []
             for m in range(num_points):
                 x = X[m].unsqueeze(0)
@@ -57,7 +57,7 @@ def run_mwu(models, iters, X, Y, noise_budget, adversary, cuda, use_ray, epsilon
                 x = x.cuda()
                 y = y.cuda()
 
-            if use_ray:
+            if parallel:
                 best_response = best_responses[m]
             else:
                 # calculate the adversary's response given current distribution

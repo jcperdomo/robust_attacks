@@ -8,8 +8,7 @@ import torch
 import logging as log
 import os
 import sys
-import ray
-
+import multiprocessing
 
 def subset_multiclass_data(data, labels, label_dict):
     # subsets data to only include labels in label dict
@@ -49,9 +48,8 @@ def get_mnist_data(train, sel_labels):
     return subset_multiclass_data(images, labels, label_dict)
 
 
-def generate_feature_independent_svms(num_classifiers, train_data, train_labels):
+def generate_feature_independent_svms(num_classifiers, train_data, train_labels, exclusive):
     """
-
     :param num_classifiers: int
     :param train_data: numpy array
     :param train_labels: numpy array
@@ -61,10 +59,14 @@ def generate_feature_independent_svms(num_classifiers, train_data, train_labels)
     dim_per_classifier = int(dims / num_classifiers)  # defaults to floor function if not integer
     remaining_dims = list(range(dims))
     chosen_dims = []
-    for _ in range(num_classifiers):
-        chosen = np.random.choice(remaining_dims, size=dim_per_classifier, replace=False)
-        chosen_dims.append(chosen)
-        remaining_dims = list(set(remaining_dims).difference(set(chosen)))
+
+    if exclusive:
+        for _ in range(num_classifiers):
+            chosen = np.random.choice(remaining_dims, size=dim_per_classifier, replace=False)
+            chosen_dims.append(chosen)
+            remaining_dims = list(set(remaining_dims).difference(set(chosen)))
+    else:
+        chosen_dims = [np.random.choice(remaining_dims, size=dim_per_classifier) for _ in range(num_classifiers)]
 
     models = []
     zeroed_features_list = [list(set(range(dims)).difference(set(x))) for x in chosen_dims]
@@ -106,15 +108,18 @@ def main(arguments):
     parser = argparse.ArgumentParser()
     parser.add_argument("-num_points", help="number of points to generate", type=int, required=True)
     parser.add_argument("-num_classifiers", help="number of classifiers", type=int, required=True)
+    parser.add_argument('-exclusive', type=bool, required=True)
     parser.add_argument("-sel_labels", help="list of labels to subset", nargs='+', type=int, required=True)
     args = parser.parse_args(arguments)
 
     if len(args.sel_labels) == 2:
         subdirectory = 'binary'
         oracle = distributional_oracle_binary
+        out_dim = 1
     else:
         subdirectory = 'multi'
         oracle = distributional_oracle_multi
+        out_dim = len(args.sel_labels)
 
     if not os.path.exists('experiment_data/'):
         os.mkdir('experiment_data/')
@@ -131,7 +136,7 @@ def main(arguments):
     train_data, train_labels = get_mnist_data(True, args.sel_labels)
     test_data, test_labels = get_mnist_data(False, args.sel_labels)
 
-    models = generate_feature_independent_svms(args.num_classifiers, train_data, train_labels)
+    models = generate_feature_independent_svms(args.num_classifiers, train_data, train_labels, args.exclusive)
 
     if not os.path.exists('models/'):
         os.mkdir('models/')
@@ -144,14 +149,20 @@ def main(arguments):
     test_labels = torch.tensor(test_labels)
     exp_images, exp_labels = generate_experiment_data(args.num_points, test_data, test_labels, models)
 
-    ray.init()
-    vectors = ray.get([oracle.remote(np.ones(len(models)), models, x.reshape(1,-1), torch.tensor([y]), sys.maxsize)
-                         for x,y in zip(exp_images, exp_labels)])
+    model_arrays = [(torch.tensor(model.weights.reshape(out_dim, -1), dtype=torch.float),
+                     torch.tensor(model.bias, dtype=torch.float)) for model in models]
+
+    param_list = [(np.ones(len(models)), model_arrays, x.reshape(1,-1), torch.tensor([y]), sys.maxsize)
+                  for x,y in zip(exp_images, exp_labels)]
+
+    with multiprocessing.Pool(processes=30) as pool:
+        vectors = pool.starmap(oracle, param_list)
+
     distances = np.array([v.norm().item() for v in vectors])
     # distances = np.array([model.distance(exp_images).detach().numpy() for model in models])
 
     percentiles = np.percentile(distances, [10, 25, 50, 75, 90])
-    log.info("Max Distance Percentiles for Exp Images {}\n".format(percentiles))
+    log.info("Max Distance Percentiles [10, 25, 50, 75, 90] for Exp Images \n {}".format(percentiles))
 
     for i, model in enumerate(models):
         log.info('Model {} Test Accuracy : {}'.format(i, model.accuracy(test_data, test_labels)))
