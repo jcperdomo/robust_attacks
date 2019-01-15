@@ -24,6 +24,11 @@ def run_mwu(models, iters, X, Y, noise_budget, adversary, cuda, use_ray, epsilon
     minimum_losses = [[] for _ in range(num_points)]
     noise_vectors = []
 
+    #TODO
+    if use_ray:
+        model_arrays = [(torch.tensor(model.weights.reshape(1,-1), dtype=torch.float), torch.tensor(model.bias, dtype=torch.float))
+                        for model in models]
+
     for t in range(iters):
         log.info("Iteration {}\n".format(t))
         start_time = time.time()
@@ -36,8 +41,8 @@ def run_mwu(models, iters, X, Y, noise_budget, adversary, cuda, use_ray, epsilon
             best_responses = []
             for m in range(num_points):
                 x = X[m].unsqueeze(0)
-                y = Y[m]
-                best_responses.append(adversary.remote(weights[m], models, x, y, noise_budget))
+                y = Y[m] #TODO
+                best_responses.append(adversary.remote(weights[m], model_arrays, x, y, noise_budget))
             best_responses = ray.get(best_responses)
 
         for m in range(num_points):

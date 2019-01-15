@@ -58,8 +58,8 @@ def main(arguments):
         cuda = False
 
     #TODO Remove
-    exp_data = exp_data[:50]
-    exp_labels = exp_labels[:50]
+    exp_data = exp_data[:30]
+    exp_labels = exp_labels[:30]
     use_ray = False
 
     models = load_models(args.exp_type)
@@ -70,8 +70,8 @@ def main(arguments):
     if args.noise_function == 'pgd':
         adversary = partial(attacks.pgd, iters=args.pgd_iters, cuda=cuda)
     else:
-        use_ray = False
-        # ray.init()
+        use_ray = True
+        ray.init()
         if args.exp_type == 'mnist_binary':
             adversary = attacks.distributional_oracle_binary
         elif args.exp_type == 'mnist_multi':
