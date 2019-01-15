@@ -203,7 +203,6 @@ def distributional_oracle_multi(distribution, models, x, y, noise_budget, num_la
             # break out of the loop since we have already found the optimal answer
             v = min(feasible_candidates, key=lambda x: x[1])[0]
             return torch.tensor(v, dtype=torch.float32).reshape(1, -1)
-<<<<<<< HEAD
 
 # import torch
 ## V1, NEED TO TEST V2
@@ -245,5 +244,3 @@ def distributional_oracle_multi(distribution, models, x, y, noise_budget, num_la
 #         else:
 #             break
 #     return (curr_x - x)[0] #, loss_list
-=======
->>>>>>> ad7a4ffa3fb2bfa5db73667aed8897340407362e
