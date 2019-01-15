@@ -84,8 +84,6 @@ def try_region_binary(models, signs, x, delta=1e-5):
         return None
 
 # TODO parallelize the oracle
-
-@ray.remote
 def distributional_oracle_binary(distribution, model_arrays, x, y, noise_budget):
     """
     computes the optimal perturbation for the point (x,y) using convex optimization
