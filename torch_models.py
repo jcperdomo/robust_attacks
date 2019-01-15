@@ -3,18 +3,19 @@ import torch
 import torchvision
 import numpy as np
 import os
-from attacks import try_region_multi
+# from attacks import try_region_multi
 
 class BinaryClassifier(nn.Module):
 
     def __init__(self, weights, bias):
         super(BinaryClassifier, self).__init__()
+
         # normalize weights to make distance measurements more convenient
         norm = weights.norm(2)
         weights = weights / norm
         bias = bias / norm
 
-        out_dim, in_dim = weights.size()
+        in_dim, out_dim = weights.size()
         self.linear = nn.Linear(in_dim, out_dim)
         self.linear.weight = nn.Parameter(weights)
         self.linear.bias = nn.Parameter(bias)

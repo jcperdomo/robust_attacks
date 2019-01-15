@@ -3,6 +3,7 @@ from cvxopt import matrix, solvers
 from itertools import product
 import numpy as np
 import ray
+from torch_models import BinaryClassifier
 
 def pgd(weights, models, x, y, noise_budget, iters, clip_min=0.0, clip_max=1.0, cuda=True):
     step_size = noise_budget / (.8 * iters)
@@ -85,10 +86,12 @@ def try_region_binary(models, signs, x, delta=1e-5):
 # TODO parallelize the oracle
 
 @ray.remote
-def distributional_oracle_binary(distribution, models, x, y, noise_budget):
+def distributional_oracle_binary(distribution, model_arrays, x, y, noise_budget):
     """
     computes the optimal perturbation for the point (x,y) using convex optimization
     """
+    models = [BinaryClassifier(arrays[0], arrays[1]) for arrays in model_arrays]
+
     num_models = len(models)
     # we should only take into consideration models that we could feasibly trick
     distances = [model.distance(x).item() for model in models]
@@ -200,6 +203,7 @@ def distributional_oracle_multi(distribution, models, x, y, noise_budget, num_la
             # break out of the loop since we have already found the optimal answer
             v = min(feasible_candidates, key=lambda x: x[1])[0]
             return torch.tensor(v, dtype=torch.float32).reshape(1, -1)
+<<<<<<< HEAD
 
 # import torch
 ## V1, NEED TO TEST V2
@@ -241,3 +245,5 @@ def distributional_oracle_multi(distribution, models, x, y, noise_budget, num_la
 #         else:
 #             break
 #     return (curr_x - x)[0] #, loss_list
+=======
+>>>>>>> ad7a4ffa3fb2bfa5db73667aed8897340407362e
