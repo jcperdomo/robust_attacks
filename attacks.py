@@ -5,12 +5,26 @@ import numpy as np
 from torch_models import BinaryClassifier, MultiClassifier, try_region_multi
 
 def pgd(weights, models, x, y, noise_budget, iters, clip_min=0.0, clip_max=1.0, cuda=True):
+
+    model_type = type(models[0])
+    # we should only take into consideration models that we could feasibly trick
+    if model_type is BinaryClassifier or model_type is MultiClassifier:
+        num_models = len(models)
+        distances = [model.distance(x).item() for model in models]
+        models = [models[i] for i in range(num_models) if distances[i] < noise_budget]
+        weights = np.array([weights[i] for i in range(num_models) if distances[i] < noise_budget])
+
     step_size = noise_budget / (.8 * iters)
     
     # initialize the vector we will be optimizing
     curr_noise_vector = torch.zeros(x.size())
+
     if cuda:
         curr_noise_vector= curr_noise_vector.cuda()
+
+    # can't fool anything, so return 0
+    if len(models) == 0:
+        return curr_noise_vector
 
     for i in range(iters):
         # variables we will be using this iteration

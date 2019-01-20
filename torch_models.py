@@ -149,12 +149,13 @@ class MultiClassifier(nn.Module):
         if self.oracle:
             return torch.tensor(self.accuracy(x + v, y))
         else:
-            probs = self.forward(x + v)
+            logits = self.forward(x + v)
+            # probs
             # true_max, max_ix = torch.max(probs, 1)
-            probs2 = probs.clone()
-            probs2[0, y.item()] = torch.min(probs) - 1.0
-            _, second_max_ix = torch.max(probs2, 1)
-            diff = probs[0, y.item()] - probs[0, second_max_ix.item()]
+            logits2 = logits.clone()
+            logits2[0, y.item()] = torch.min(logits) - 1.0
+            _, second_max_ix = torch.max(logits2, 1)
+            diff = logits[0, y.item()] - logits[0, second_max_ix.item()]
             relu = nn.ReLU()
             sigmoid = nn.Sigmoid()
             loss = (sigmoid(diff) - .5) * 2
@@ -165,7 +166,7 @@ class DNN(nn.Module):
     
     def __init__(self, model, cuda=True):
         super(DNN, self).__init__()
-        self.softmax = nn.Softmax(dim=1)
+        # self.softmax = nn.Softmax(dim=1)
         self.model = model
         if cuda:
             self.mean = torch.tensor([0.485, 0.456, 0.406]).cuda()
@@ -177,7 +178,8 @@ class DNN(nn.Module):
     def forward(self, x):
         x = nn.functional.batch_norm(x, self.mean, self.var, momentum=0.0, eps=0.0)
         logits = self.model(x)
-        return self.softmax(logits)
+        # return self.softmax(logits)
+        return logits
 
     def loss(self, X, Y):
         res = torch.zeros(X.size()[0])
@@ -208,13 +210,23 @@ class DNN(nn.Module):
         return res
 
     def loss_single(self, x, v, y, noise_budget):
-        probs = self.forward(x + v)
-        # true_max, max_ix = torch.max(probs, 1)
-        probs2 = probs.clone()
-        probs2[0, y.item()] = -1.0
-        _, second_max_ix = torch.max(probs2, 1)
+        # probs = self.forward(x + v)
+        # # true_max, max_ix = torch.max(probs, 1)
+        # probs2 = probs.clone()
+        # probs2[0, y.item()] = -1.0
+        # _, second_max_ix = torch.max(probs2, 1)
+        # relu = nn.ReLU()
+        # return relu(probs[0, y.item()] - probs[0, second_max_ix.item()])
+        logits = self.forward(x + v)
+        logits2 = logits.clone()
+        logits2[0, y.item()] = torch.min(logits) - 1.0
+        _, second_max_ix = torch.max(logits2, 1)
+        diff = logits[0, y.item()] - logits[0, second_max_ix.item()]
         relu = nn.ReLU()
-        return relu(probs[0, y.item()] - probs[0, second_max_ix.item()])
+        sigmoid = nn.Sigmoid()
+        loss = (sigmoid(diff) - .5) * 2
+        return relu(loss)
+
 
 def load_models(exp_type):
 
