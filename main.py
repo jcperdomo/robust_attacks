@@ -43,8 +43,8 @@ def main(arguments):
 
     # load data, setup attack
     if args.exp_type == 'imagenet':
-        exp_data = torch.load('experiment_data/imagenet_images.pt')[:100]
-        exp_labels = torch.load('experiment_data/imagenet_labels.pt')[:100]
+        exp_data = torch.load('experiment_data/imagenet/imagenet_images.pt')[:100]
+        exp_labels = torch.load('experiment_data/imagenet/imagenet_labels.pt')[:100]
         num_labels = 1000
         cuda = True
 

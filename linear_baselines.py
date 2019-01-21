@@ -4,6 +4,27 @@ from torch_models import BinaryClassifier, MultiClassifier, try_region_multi
 import torch
 import sys
 
+def compute_mwu_accuracies(models, noise_vectors, images, labels):
+    mwu_iters, num_points = noise_vectors.shape[:2]
+    model_accs_per_point = []
+    for i in range(num_points):
+        x = images[i]
+        y = labels[i]
+        model_accs = []
+        for t in range(mwu_iters):
+            v = noise_vectors[t][i]
+            model_accs.append([model.accuracy(x + v, y) for model in models])
+        model_accs_per_point.append(np.array(model_accs))
+    
+    max_acc_plot = []
+    mean_acc_plot = []
+    for t in range(mwu_iters):
+        mean_acc = np.mean([np.mean(np.mean(model_accs[:t+1], axis=0)) for model_accs in model_accs_per_point])
+        max_acc = np.mean([np.max(np.mean(model_accs[:t+1], axis=0)) for model_accs in model_accs_per_point])
+        max_acc_plot.append(max_acc)
+        mean_acc_plot.append(mean_acc)
+    return {'max':max_acc_plot, 'mean':mean_acc_plot}
+
 def subset_feasible_models(models, x, noise_budget):
     dists = [model.distance(x).item() for model in models]
     num_models = len(models)
@@ -41,7 +62,7 @@ def compute_linear_ensemble_baseline(models, images, labels, noise_budget):
 
     noise_vectors = []
     for i in range(len(images)):
-        x = images[i]  # .unsqueeze()
+        x = images[i].unsqueeze(0)
         y = labels[i]
         ensemble = ensemble_linear_models(subset_feasible_models(models, x, noise_budget))
         ensemble_array = [(torch.tensor(ensemble.weights.reshape(out_dim, -1),
@@ -100,7 +121,7 @@ def coordinate_ascent(models, x, y, noise_budget):
 def compute_linear_coordinate_ascent_baseline(models, images, labels, noise_budget):
     coordinate_ascent_baseline = []
     for i in range(len(images)):
-        x = images[i]
+        x = images[i].unsqueeze(0)
         y = labels[i]
         coordinate_ascent_baseline.append(coordinate_ascent(models, x, y, noise_budget))
     return torch.stack(coordinate_ascent_baseline).reshape(images.size())
@@ -117,7 +138,7 @@ def compute_max_individual_baseline(models, images, labels, noise_budget):
 
     noise_vectors = []
     for i in range(len(images)):
-        x = images[i]
+        x = images[i].unsqueeze(0)
         y = labels[i]
 
         individual_attacks = []

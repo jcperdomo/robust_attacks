@@ -168,12 +168,12 @@ class DNN(nn.Module):
         super(DNN, self).__init__()
         # self.softmax = nn.Softmax(dim=1)
         self.model = model
-        if cuda:
-            self.mean = torch.tensor([0.485, 0.456, 0.406]).cuda()
-            self.var = torch.tensor([0.229, 0.224, 0.225]).pow(2).cuda()
-        else:
-            self.mean = torch.tensor([0.485, 0.456, 0.406])
-            self.var = torch.tensor([0.229, 0.224, 0.225]).pow(2)
+#         if cuda:
+        self.mean = torch.tensor([0.485, 0.456, 0.406]).cuda()
+        self.var = torch.tensor([0.229, 0.224, 0.225]).pow(2).cuda()
+#         else:
+#             self.mean = torch.tensor([0.485, 0.456, 0.406])
+#             self.var = torch.tensor([0.229, 0.224, 0.225]).pow(2)
 
     def forward(self, x):
         x = nn.functional.batch_norm(x, self.mean, self.var, momentum=0.0, eps=0.0)
