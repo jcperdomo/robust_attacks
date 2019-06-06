@@ -44,7 +44,7 @@ def pgd(weights, models, x, y, noise_budget, iters, clip_min=0.0, clip_max=1.0, 
 
         total_loss.backward()
         grad = var_noise_vector.grad.data
-        # update variables respecting norm and box contraints
+        # upd ate variables respecting norm and box contraints
         grad_norm = grad.norm(2)
         if grad_norm > 0:
 
